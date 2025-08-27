@@ -1,4 +1,8 @@
-const pdfjsPath = path => new URL(`./vendor/pdfjs/${path}`, (import.meta.url).replace(/t=\d+$/, '')).toString()
+const pdfjsPath = path =>
+    // eslint-disable-next-line no-undef
+    process.env.NODE_ENV === 'production' ?
+        new URL(`./vendor/pdfjs/${path}`,import.meta.url).toString() :
+        new URL(`./vendor/pdfjs/${path}`, (import.meta.url).replace(/t=\d+$/, '')).toString()
 
 import './vendor/pdfjs/pdf.mjs'
 const pdfjsLib = globalThis.pdfjsLib
