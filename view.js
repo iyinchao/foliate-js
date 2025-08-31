@@ -218,7 +218,7 @@ export class View extends HTMLElement {
     #searchResults = new Map()
     #cursorAutohider = new CursorAutohider(this, () =>
         this.hasAttribute('autohide-cursor'))
-    #rendererDoc
+    #rendererDocs = []
     isFixedLayout = false
     lastLocation
     history = new History()
@@ -297,6 +297,7 @@ export class View extends HTMLElement {
     close() {
         this.renderer?.destroy()
         this.renderer?.remove()
+        this.#rendererDocs = []
         this.#sectionProgress = null
         this.#tocProgress = null
         this.#pageProgress = null
@@ -342,12 +343,23 @@ export class View extends HTMLElement {
         if (!this.language.isCJK)
             doc.documentElement.dir ||= this.language.direction ?? ''
 
-        this.#rendererDoc = doc
+        this.#storeRendererDoc(doc)
         this.#handleLinks(doc, index)
         this.#handleClickBackground(doc)
         this.#cursorAutohider.cloneFor(doc.documentElement)
 
         this.#emit('load', { doc, index })
+    }
+    #storeRendererDoc(doc) {
+        if (!this.#rendererDocs.includes(doc)) {
+            this.#rendererDocs.push(doc)
+            doc.defaultView?.addEventListener('unload', () => {
+                this.#rendererDocs = this.#rendererDocs.filter((item) => item === doc)
+            })
+            this.#rendererDocs = this.#rendererDocs.filter((item) => {
+                return !!(item.defaultView?.frameElement)
+            })
+        }
     }
     #handleLinks(doc, index) {
         const { book } = this
@@ -392,7 +404,9 @@ export class View extends HTMLElement {
             downPoint = { x: e.clientX, y: e.clientY }
             // if click outside, then cleanr selection inside of renderer
             if (isRendererClick) {
-                this.#rendererDoc?.defaultView.getSelection().removeAllRanges()
+                this.#rendererDocs?.forEach((doc) => {
+                    doc.defaultView?.getSelection().removeAllRanges()
+                })
             }
 
             element.addEventListener('pointermove', onPointerMove)
@@ -419,19 +433,22 @@ export class View extends HTMLElement {
 
             // get clicking element offset
             let offset = { x: 0, y: 0 }
+            let scale = 1
             if (isRendererClick) {
                 const rect = this.renderer.getBoundingClientRect()
                 offset.x = rect.x
                 offset.y = rect.y
             } else {
-                const rect = this.#rendererDoc?.defaultView.frameElement.getBoundingClientRect()
-                if (rect) {
+                const frame = e.target.ownerDocument?.defaultView?.frameElement
+                const rect = frame?.getBoundingClientRect()
+                if (frame && rect) {
+                    scale = rect.width / frame.clientWidth
                     offset.x = rect.x
                     offset.y = rect.y
                 }
             }
 
-            this.#emit('click-background', { clientX: e.clientX + offset.x, clientY: e.clientY + offset.y })
+            this.#emit('click-background', { clientX: e.clientX * scale + offset.x, clientY: e.clientY * scale + offset.y })
         })
     }
     async addAnnotation(annotation, remove) {
