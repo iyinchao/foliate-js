@@ -218,6 +218,7 @@ export class View extends HTMLElement {
     #searchResults = new Map()
     #cursorAutohider = new CursorAutohider(this, () =>
         this.hasAttribute('autohide-cursor'))
+    #rendererDoc
     isFixedLayout = false
     lastLocation
     history = new History()
@@ -263,6 +264,7 @@ export class View extends HTMLElement {
             e.detail.attach(this.#createOverlayer(e.detail)))
         this.renderer.open(book)
         this.#root.append(this.renderer)
+        this.#handleClickBackground(this.renderer)
 
         if (book.sections.some(section => section.mediaOverlay)) {
             const activeClass = book.media.activeClass
@@ -340,7 +342,9 @@ export class View extends HTMLElement {
         if (!this.language.isCJK)
             doc.documentElement.dir ||= this.language.direction ?? ''
 
+        this.#rendererDoc = doc
         this.#handleLinks(doc, index)
+        this.#handleClickBackground(doc)
         this.#cursorAutohider.cloneFor(doc.documentElement)
 
         this.#emit('load', { doc, index })
@@ -361,6 +365,73 @@ export class View extends HTMLElement {
             else Promise.resolve(this.#emit('link', { a, href }, true))
                 .then(x => x ? this.goTo(href) : null)
                 .catch(e => console.error(e))
+        })
+    }
+    #handleClickBackground(element) {
+        let isRendererClick = false
+        if (element === this.renderer) {
+            isRendererClick = true
+        }
+
+        const containerDoc = isRendererClick ? this.renderer.ownerDocument : element
+        let hasTextSelectionBefore = false
+        let isMove = false
+        let downPoint
+
+        const onPointerMove = (e) => {
+            const currentPoint = { x: e.clientX, y: e.clientY }
+            if (Math.abs(currentPoint.x - downPoint.x) > 5
+            || Math.abs(currentPoint.y - downPoint.y) > 5) {
+                isMove = true
+                element.removeEventListener('pointermove', onPointerMove)
+            }
+        }
+        element.addEventListener('pointerdown', (e) => {
+            hasTextSelectionBefore = !containerDoc.getSelection().isCollapsed
+            isMove = false
+            downPoint = { x: e.clientX, y: e.clientY }
+            // if click outside, then cleanr selection inside of renderer
+            if (isRendererClick) {
+                this.#rendererDoc?.defaultView.getSelection().removeAllRanges()
+            }
+
+            element.addEventListener('pointermove', onPointerMove)
+        })
+        element.addEventListener('pointerup', () => {
+            element.removeEventListener('pointermove', onPointerMove)
+        })
+        element.addEventListener('click', e => {
+            if (isMove) {
+                return
+            }
+            // fiter out controls click
+            const a = e.target.closest('a[href]')
+            const button = e.target.closest('button')
+            const input = e.target.closest('input')
+            if (a || button || input) {
+                return
+            }
+            // filter out selection
+            const hasTextSelectionCurrent = !containerDoc.getSelection().isCollapsed
+            if (hasTextSelectionBefore || hasTextSelectionCurrent) {
+                return
+            }
+
+            // get clicking element offset
+            let offset = { x: 0, y: 0 }
+            if (isRendererClick) {
+                const rect = this.renderer.getBoundingClientRect()
+                offset.x = rect.x
+                offset.y = rect.y
+            } else {
+                const rect = this.#rendererDoc?.defaultView.frameElement.getBoundingClientRect()
+                if (rect) {
+                    offset.x = rect.x
+                    offset.y = rect.y
+                }
+            }
+
+            this.#emit('click-background', { clientX: e.clientX + offset.x, clientY: e.clientY + offset.y })
         })
     }
     async addAnnotation(annotation, remove) {
@@ -591,3 +662,4 @@ export class View extends HTMLElement {
 }
 
 // customElements.define('foliate-view', View)
+window.__foliateView = View
