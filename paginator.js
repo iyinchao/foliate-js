@@ -565,13 +565,13 @@ export class Paginator extends HTMLElement {
         }, 250))
 
         const opts = { passive: false }
-        this.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
-        this.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
-        this.addEventListener('touchend', this.#onTouchEnd.bind(this))
+        // this.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
+        // this.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
+        // this.addEventListener('touchend', this.#onTouchEnd.bind(this))
         this.addEventListener('load', ({ detail: { doc } }) => {
-            doc.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
-            doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
-            doc.addEventListener('touchend', this.#onTouchEnd.bind(this))
+            // doc.addEventListener('touchstart', this.#onTouchStart.bind(this), opts)
+            // doc.addEventListener('touchmove', this.#onTouchMove.bind(this), opts)
+            // doc.addEventListener('touchend', this.#onTouchEnd.bind(this))
         })
 
         this.addEventListener('relocate', ({ detail }) => {
